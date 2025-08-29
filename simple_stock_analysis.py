@@ -34,7 +34,13 @@ def get_stock_data(symbol: str) -> str:
             hist_data = stock.history(start=start_date, end=end_date)
             
             # Compile key metrics
-            current_price = hist_data['Close'][-1] if not hist_data.empty else info.get('currentPrice', 'N/A')
+            current_price = None
+            if not hist_data.empty and len(hist_data) > 0:
+                current_price = float(hist_data['Close'].iloc[-1])
+            elif 'currentPrice' in info and info['currentPrice'] is not None:
+                current_price = float(info['currentPrice'])
+            else:
+                current_price = 'N/A'
             
             stock_data = {
                 'symbol': ticker_symbol,
@@ -58,15 +64,41 @@ def get_stock_data(symbol: str) -> str:
             }
             
             # Add recent performance
-            if not hist_data.empty:
+            if not hist_data.empty and current_price != 'N/A':
                 try:
-                    stock_data['1_month_return'] = f"{((current_price - hist_data['Close'][-30]) / hist_data['Close'][-30] * 100):.2f}" if len(hist_data) >= 30 else 'N/A'
-                    stock_data['3_month_return'] = f"{((current_price - hist_data['Close'][-90]) / hist_data['Close'][-90] * 100):.2f}" if len(hist_data) >= 90 else 'N/A'
-                    stock_data['1_year_return'] = f"{((current_price - hist_data['Close'][-252]) / hist_data['Close'][-252] * 100):.2f}" if len(hist_data) >= 252 else 'N/A'
-                except:
+                    # Calculate returns using proper indexing
+                    hist_close = hist_data['Close']
+                    
+                    # 1 month return (22 trading days)
+                    if len(hist_close) >= 22:
+                        month_ago_price = float(hist_close.iloc[-22])
+                        stock_data['1_month_return'] = f"{((current_price - month_ago_price) / month_ago_price * 100):.2f}"
+                    else:
+                        stock_data['1_month_return'] = 'N/A'
+                    
+                    # 3 month return (66 trading days)
+                    if len(hist_close) >= 66:
+                        three_months_ago_price = float(hist_close.iloc[-66])
+                        stock_data['3_month_return'] = f"{((current_price - three_months_ago_price) / three_months_ago_price * 100):.2f}"
+                    else:
+                        stock_data['3_month_return'] = 'N/A'
+                    
+                    # 1 year return (252 trading days)
+                    if len(hist_close) >= 252:
+                        year_ago_price = float(hist_close.iloc[-252])
+                        stock_data['1_year_return'] = f"{((current_price - year_ago_price) / year_ago_price * 100):.2f}"
+                    else:
+                        stock_data['1_year_return'] = 'N/A'
+                        
+                except Exception as e:
+                    print(f"Error calculating returns: {e}")
                     stock_data['1_month_return'] = 'N/A'
                     stock_data['3_month_return'] = 'N/A'
                     stock_data['1_year_return'] = 'N/A'
+            else:
+                stock_data['1_month_return'] = 'N/A'
+                stock_data['3_month_return'] = 'N/A'
+                stock_data['1_year_return'] = 'N/A'
             
             return stock_data, True
             
